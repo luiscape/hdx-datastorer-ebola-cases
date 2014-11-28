@@ -53,7 +53,7 @@ def checkHash(filename, first_run):
 
     else:
         old_hash = scraperwiki.sqlite.get_var('hash')
-        scraperwiki.save_var('hash', new_hash)
+        scraperwiki.sqlite.save_var('hash', new_hash)
         new_data = old_hash != new_hash
 
     # returning a boolean
@@ -62,7 +62,7 @@ def checkHash(filename, first_run):
 def updateDatastore(filename):
 
     # Checking if there is new data
-    update_data = checkHash(filename, first_run = True)
+    update_data = checkHash(filename, first_run = False)
     if (update_data == False):
         print "DataStore Status: No new data. Not updating datastore."
         return
