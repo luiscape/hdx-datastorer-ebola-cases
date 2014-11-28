@@ -11,10 +11,10 @@ import requests
 import sys
 import hashlib
 
-# Collecting variables
-remote = 'http://data.hdx.rwlabs.org'
-APIKey = 'XXXXX'
+# Collecting configuration variables
+remote = 'https://data.hdx.rwlabs.org'
 resource_id = sys.argv[1]
+apikey = sys.argv[2]
 
 # ckan will be an instance of ckan api wrapper
 ckan = None
@@ -62,78 +62,75 @@ def checkHash(filename, first_run):
 def updateDatastore(filename):
 
     # Checking if there is new data
-    update_data = checkHash(filename, first_run = False)
-    if (update_data == False):
+    new_data = checkHash(filename, first_run = False)
+    if (new_data == False):
         print "DataStore Status: No new data. Not updating datastore."
         return
 
+    else:
+        print "DataStore Status: New data. Updating datastore."
 
-    print "DataStore Status: New data. Updating datastore."
-
-    # defining the schema
-    resources = [
-        {
-            'resource_id': resource_id,
-            'path': filename,
-            'schema': {
-                "fields": [
-                  { "id": "Indicator", "type": "text" },
-                  { "id": "Country", "type": "text" },
-                  { "id": "Date", "type": "timestamp"},
-                  { "id": "value", "type": "float" }
-                ]
-            },
-        }
-    ]
+        # defining the schema
+        resources = [
+            {
+                'resource_id': resource_id,
+                'path': filename,
+                'schema': {
+                    "fields": [
+                      { "id": "Indicator", "type": "text" },
+                      { "id": "Country", "type": "text" },
+                      { "id": "Date", "type": "timestamp"},
+                      { "id": "value", "type": "float" }
+                    ]
+                },
+            }
+        ]
 
 
-    def upload_data_to_datastore(ckan_resource_id, resource):
-        # let's delete any existing data before we upload again
-        try:
-            ckan.action.datastore_delete(resource_id=ckan_resource_id, force=True)
-        except:
-            pass
+        def upload_data_to_datastore(ckan_resource_id, resource):
+            # let's delete any existing data before we upload again
+            try:
+                ckan.action.datastore_delete(resource_id=ckan_resource_id, force=True)
+            except:
+                pass
 
-        ckan.action.datastore_create(
-                resource_id=ckan_resource_id,
-                force=True,
-                fields=resource['schema']['fields'],
-                primary_key=resource['schema'].get('primary_key'))
-
-        reader = csv.DictReader(open(resource['path']))
-        rows = [ row for row in reader ]
-        chunksize = 10000
-        offset = 0
-        print('Uploading data for file: %s' % resource['path'])
-        while offset < len(rows):
-            rowset = rows[offset:offset+chunksize]
-            ckan.action.datastore_upsert(
+            ckan.action.datastore_create(
                     resource_id=ckan_resource_id,
                     force=True,
-                    method='insert',
-                    records=rowset)
-            offset += chunksize
-            print('Done: %s' % offset)
+                    fields=resource['schema']['fields'],
+                    primary_key=resource['schema'].get('primary_key'))
+
+            reader = csv.DictReader(open(resource['path']))
+            rows = [ row for row in reader ]
+            chunksize = 10000
+            offset = 0
+            print('Uploading data for file: %s' % resource['path'])
+            while offset < len(rows):
+                rowset = rows[offset:offset+chunksize]
+                ckan.action.datastore_upsert(
+                        resource_id=ckan_resource_id,
+                        force=True,
+                        method='insert',
+                        records=rowset)
+                offset += chunksize
+                print('Done: %s' % offset)
 
 
-    import sys
-    if __name__ == '__main__':
-        if len(sys.argv) <= 2:
-            usage = '''python scripts/upload.py {ckan-instance} {api-key}
+        if __name__ == '__main__':
+            if len(sys.argv) <= 2:
+                usage = '''python scripts/upload.py {resource-id} {api-key}
 
-            e.g.
+                e.g.
 
-            python scripts/upload.py http://datahub.io/ MY-API-KEY
-            '''
-            print(usage)
-            sys.exit(1)
+                python scripts/upload.py RESOURCE_ID API_KEY
+                '''
+                print(usage)
+                sys.exit(1)
 
-        remote = sys.argv[1]
-        apikey = sys.argv[2]
-        ckan = ckanapi.RemoteCKAN(remote, apikey=apikey)
+            ckan = ckanapi.RemoteCKAN(remote, apikey=apikey)
 
-        resource = resources[0]
-        upload_data_to_datastore(resource['resource_id'], resource)
+            resource = resources[0]
+            upload_data_to_datastore(resource['resource_id'], resource)
 
 def runEverything():
     downloadResource('tool/data/ebola-data-db-format.csv')
