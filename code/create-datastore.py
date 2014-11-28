@@ -11,6 +11,7 @@ import requests
 import sys
 import hashlib
 
+# Collecting variables
 remote = 'http://data.hdx.rwlabs.org'
 APIKey = 'XXXXX'
 resource_id = sys.argv[1]
