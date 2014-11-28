@@ -1,3 +1,6 @@
+# Simple script that manages the creation of
+# datastores in CKAN / HDX.
+
 import os
 import csv
 import json
@@ -5,17 +8,22 @@ import scraperwiki
 import ckanapi
 import urllib
 import requests
+import sys
+import hashlib
 
 remote = 'http://data.hdx.rwlabs.org'
 APIKey = 'XXXXX'
+resource_id = sys.argv[1]
 
 # ckan will be an instance of ckan api wrapper
 ckan = None
 
+# Function to download a resource from CKAN.
 def downloadResource(filename):
 
     # querying
-    r = requests.get('https://data.hdx.rwlabs.org/api/action/resource_show?id=f48a3cf9-110e-4892-bedf-d4c1d725a7d1')
+    url = 'https://data.hdx.rwlabs.org/api/action/resource_show?id=' + resource_id
+    r = requests.get(url)
     doc = r.json()
     fileUrl = doc["result"]["url"]
 
@@ -25,13 +33,47 @@ def downloadResource(filename):
     except:
         print 'There was an error downlaoding the file.'
 
-def updateDatastore():
+# Function that checks for old SHA hash
+# and stores as a SW variable the new hash
+# if they differ. If this function returns true,
+# then the datastore is created.
+def checkHash(filename, first_run):
+    hasher = hashlib.sha1()
+    with open(filename, 'rb') as afile:
+        buf = afile.read()
+        hasher.update(buf)
+        new_hash = hasher.hexdigest()
+
+    # checking if the files are identical or if
+    # they have changed
+    if first_run:
+        scraperwiki.sqlite.save_var('hash', new_hash)
+        new_data = False
+
+    else:
+        old_hash = scraperwiki.sqlite.get_var('hash')
+        scraperwiki.save_var('hash', new_hash)
+        new_data = old_hash != new_hash
+
+    # returning a boolean
+    return new_data
+
+def updateDatastore(filename):
+
+    # Checking if there is new data
+    update_data = checkHash(filename, first_run = True)
+    if (update_data == False):
+        print "DataStore Status: No new data. Not updating datastore."
+        return
+
+
+    print "DataStore Status: New data. Updating datastore."
 
     # defining the schema
     resources = [
         {
-            'resource_id': 'f48a3cf9-110e-4892-bedf-d4c1d725a7d1',
-            'path': 'data/ebola-data-db-format.csv',
+            'resource_id': resource_id,
+            'path': filename,
             'schema': {
                 "fields": [
                   { "id": "Indicator", "type": "text" },
@@ -78,10 +120,10 @@ def updateDatastore():
         if len(sys.argv) <= 2:
             usage = '''python scripts/upload.py {ckan-instance} {api-key}
 
-    e.g.
+            e.g.
 
-    python scripts/upload.py http://datahub.io/ MY-API-KEY
-    '''
+            python scripts/upload.py http://datahub.io/ MY-API-KEY
+            '''
             print(usage)
             sys.exit(1)
 
@@ -93,15 +135,15 @@ def updateDatastore():
         upload_data_to_datastore(resource['resource_id'], resource)
 
 def runEverything():
-    downloadResource('data/ebola-data-db-format.csv')
-    updateDatastore()
+    downloadResource('tool/data/ebola-data-db-format.csv')
+    updateDatastore('tool/data/ebola-data-db-format.csv')
 
 
 # Error handler for running the entire script
 try:
     runEverything()
     # if everything ok
-    print "Everything seems to be just fine."
+    print "SW Status: Everything seems to be just fine."
     scraperwiki.status('ok')
 
 except Exception as e:
